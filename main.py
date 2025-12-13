@@ -86,11 +86,27 @@ if st.session_state.start_flg:
         # チャット入力以外
         if not st.session_state.chat_open_flg:
             with st.spinner('問題文生成中...'):
-                st.session_state.problem, llm_response_audio = ft.create_problem_and_play_audio()
+                try:
+                    st.session_state.problem, llm_response_audio = ft.create_problem_and_play_audio()
+                    if not st.session_state.problem:
+                        st.error("問題文の生成に失敗しました。もう一度お試しください。")
+                        st.stop()
 
-            st.session_state.chat_open_flg = True
-            st.session_state.dictation_flg = False
-            st.rerun()
+                    # 音声ファイルの生成
+                    audio_output_file_path = f"{ct.AUDIO_OUTPUT_DIR}/audio_output_{int(time.time())}.wav"
+                    ft.save_to_wav(llm_response_audio.content, audio_output_file_path)
+
+                    # 音声ファイルの表示（再生ボタン付き）
+                    st.audio(audio_output_file_path)
+
+                    # ディクテーション回答待ちのメッセージを表示
+                    st.info("AIが読み上げた音声を、画面下部のチャット欄からそのまま入力・送信してください。")
+                    st.session_state.chat_open_flg = True
+
+                except Exception as e:
+                    st.error(f"問題文生成中にエラーが発生しました: {e}")
+                    st.stop()
+
         # チャット入力時の処理
         else:
             # チャット欄から入力された場合にのみ評価処理が実行されるようにする
