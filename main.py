@@ -17,6 +17,7 @@ from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 import functions as ft
 import constants as ct
+import uuid
 
 
 # 各種設定
@@ -219,7 +220,23 @@ if st.session_state.start_flg:
             ft.save_to_wav(llm_response_audio.content, audio_output_file_path)
 
         # 音声ファイルの読み上げ
-        ft.play_wav(audio_output_file_path, speed=st.session_state.speed)
+        # ft.play_wav(audio_output_file_path, speed=st.session_state.speed)
+        # 既存の一時音声ファイルを削除、新たに一時音声ファイルを作成して再生（以下、st.audio(temp_audio_path)まで）
+        if "temp_audio_path" in st.session_state:
+            try:
+                os.remove(st.session_state.temp_audio_path)
+            except FileNotFoundError:
+                pass
+
+        # 再生速度が 1.0 以外のときのみ変換
+        if st.session_state.speed != 1.0:
+            temp_audio_path = f"temp_{uuid.uuid4().hex}.wav"
+            ft.change_speed(audio_output_file_path, temp_audio_path, st.session_state.speed)
+        else:
+            temp_audio_path = audio_output_file_path
+
+        st.session_state.temp_audio_path = temp_audio_path
+        st.audio(temp_audio_path)
 
         # AIメッセージの画面表示とリストへの追加
         with st.chat_message("assistant", avatar=ct.AI_ICON_PATH):
