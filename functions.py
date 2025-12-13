@@ -18,6 +18,7 @@ from langchain.memory import ConversationSummaryBufferMemory
 from langchain_openai import ChatOpenAI
 from langchain.chains import ConversationChain
 import constants as ct
+import uuid  # 一意のファイル名生成のためにuuidをインポート
 
 def record_audio(audio_input_file_path):
     """
@@ -174,8 +175,12 @@ def create_problem_and_play_audio():
     audio_output_file_path = f"{ct.AUDIO_OUTPUT_DIR}/audio_output_{int(time.time())}.wav"
     save_to_wav(llm_response_audio.content, audio_output_file_path)
 
-    # 音声ファイルの読み上げ
-    play_wav(audio_output_file_path, st.session_state.speed)
+    # 音声ファイルの再生処理を変更
+    # play_wav(audio_output_file_path, st.session_state.speed)  # 元のコードをコメントアウト
+    if st.session_state.speed != 1.0:
+        temp_audio_path = f"temp_{uuid.uuid4().hex}.wav"
+        change_speed(audio_output_file_path, temp_audio_path, st.session_state.speed)
+        audio_output_file_path = temp_audio_path
 
     return problem, llm_response_audio
 
