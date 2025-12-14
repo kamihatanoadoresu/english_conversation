@@ -19,7 +19,7 @@ import functions as ft
 import constants as ct
 import uuid
 from initialize import initialize
-from state_manager import reset_state
+from state_manager import reset_conversation
 
 
 # 各種設定
@@ -36,34 +36,40 @@ initialize()
 
 
 # メッセージリストの一覧表示
-for message in st.session_state.messages:
-    if message["role"] == "assistant":
-        with st.chat_message(message["role"], avatar="images/ai_icon.jpg"):
-            st.markdown(message["content"])
-    elif message["role"] == "user":
-        with st.chat_message(message["role"], avatar="images/user_icon.jpg"):
-            st.markdown(message["content"])
-    else:
-        st.divider()
+if st.session_state.start_flg:
+    for message in st.session_state.messages:
+        if message["role"] == "assistant":
+            with st.chat_message(message["role"], avatar="images/ai_icon.jpg"):
+                st.markdown(message["content"])
+        elif message["role"] == "user":
+            with st.chat_message(message["role"], avatar="images/user_icon.jpg"):
+                st.markdown(message["content"])
+        else:
+            st.divider()
 
 # 会話開始ボタンと中断ボタンの切り替え
 if st.session_state.start_flg:
-    button_label = "中断"
-    if st.button(button_label, use_container_width=True):
-        reset_state()
+    if st.button("中断", use_container_width=True):
+        reset_conversation()
         st.session_state.start_flg = False
-        st.session_state.show_reset_message = True
-        st.stop()  # Stop execution to refresh the UI and show the 'Start' button
+        st.rerun()
 else:
     if st.button("開始", use_container_width=True, type="primary"):
+        reset_conversation()
         st.session_state.start_flg = True
         st.session_state.show_reset_message = False
+        st.rerun()
+
+# 会話未開始の場合は以降の処理を停止
+if not st.session_state.start_flg:
+    st.stop()
 
 # LLMレスポンスの下部にモード実行のボタン表示
-if st.session_state.shadowing_flg:
-    st.session_state.shadowing_button_flg = st.button("シャドーイング開始")
-if st.session_state.dictation_flg:
-    st.session_state.dictation_button_flg = st.button("ディクテーション開始")
+if st.session_state.start_flg:
+    if st.session_state.shadowing_flg:
+        st.session_state.shadowing_button_flg = st.button("シャドーイング開始")
+    if st.session_state.dictation_flg:
+        st.session_state.dictation_button_flg = st.button("ディクテーション開始")
 
 # 「ディクテーション」モードのチャット入力受付時に実行
 if st.session_state.chat_open_flg:
