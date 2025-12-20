@@ -2,8 +2,8 @@ import streamlit as st
 import os
 import time
 from pathlib import Path
-import wave
-import pyaudio
+# import wave
+# import pyaudio
 from pydub import AudioSegment
 from audiorecorder import audiorecorder
 import numpy as np
