@@ -7,6 +7,10 @@ from langchain_openai import ChatOpenAI
 # =========================
 
 DEFAULT_STATE = {
+    # 認証
+    "authenticated": False,
+    "username": None,
+    
     # 共通
     "messages": [],
     "start_flg": False,

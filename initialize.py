@@ -8,15 +8,24 @@ from langchain_openai import ChatOpenAI
 import constants as ct
 import functions as ft
 from state_manager import initialize_state
+import auth
 
 
 def initialize():
     """
     アプリ起動時の初期化処理
+    - 認証チェック
     - session_state 初期化
     - 外部リソース生成
     - サイドバーUI
     """
+    # =========================
+    # 認証チェック
+    # =========================
+    if not auth.check_authentication():
+        auth.login()
+        st.stop()
+    
     # =========================
     # セッションステート初期化
     # =========================
@@ -94,6 +103,12 @@ def initialize():
                 st.session_state.shadowing_flg = False
 
         st.session_state.pre_mode = st.session_state.mode
+
+        # ログアウトボタン（認証済みの場合のみ表示）
+        st.divider()
+        st.markdown(f"**ログイン中:** {st.session_state.username}")
+        if st.button("ログアウト", use_container_width=True, key="logout_button"):
+            auth.logout()
 
     # =========================
     # 初回メッセージ
