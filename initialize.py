@@ -50,11 +50,6 @@ def initialize():
             return_messages=True
         )
 
-    if "chain_basic_conversation" not in st.session_state:
-        st.session_state.chain_basic_conversation = ft.create_chain(
-            ct.SYSTEM_TEMPLATE_BASIC_CONVERSATION
-        )
-
     # =========================
     # サイドバー UI
     # =========================
@@ -81,6 +76,13 @@ def initialize():
             ct.PLAY_SPEED_OPTION,
             index=3
         )
+
+        # 英語レベルが設定されたらchainを初期化
+        if "chain_basic_conversation" not in st.session_state or st.session_state.get("prev_englv") != st.session_state.englv:
+            st.session_state.chain_basic_conversation = ft.create_chain(
+                ct.SYSTEM_TEMPLATE_BASIC_CONVERSATION.format(level=st.session_state.englv)
+            )
+            st.session_state.prev_englv = st.session_state.englv
 
         # =========================
         # モード変更時の制御

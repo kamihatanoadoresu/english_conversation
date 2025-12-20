@@ -87,7 +87,8 @@ if st.session_state.start_flg:
     # 「ディクテーション」ボタン押下時か、「英会話開始」ボタン押下時か、チャット送信時
     if st.session_state.mode == ct.MODE_3 and (st.session_state.dictation_button_flg or st.session_state.dictation_count == 0 or st.session_state.dictation_chat_message):
         if st.session_state.dictation_first_flg:
-            st.session_state.chain_create_problem = ft.create_chain(ct.SYSTEM_TEMPLATE_CREATE_PROBLEM)
+            system_template_with_level = ct.SYSTEM_TEMPLATE_CREATE_PROBLEM.format(level=st.session_state.englv)
+            st.session_state.chain_create_problem = ft.create_chain(system_template_with_level)
             st.session_state.dictation_first_flg = False
         # チャット入力以外
         if not st.session_state.chat_open_flg:
@@ -132,7 +133,8 @@ if st.session_state.start_flg:
             with st.spinner('評価結果の生成中...'):
                 system_template = ct.SYSTEM_TEMPLATE_EVALUATION.format(
                     llm_text=st.session_state.problem,
-                    user_text=st.session_state.dictation_chat_message
+                    user_text=st.session_state.dictation_chat_message,
+                    level=st.session_state.englv
                 )
                 st.session_state.chain_evaluation = ft.create_chain(system_template)
                 # 問題文と回答を比較し、評価結果の生成を指示するプロンプトを作成
@@ -165,8 +167,12 @@ if st.session_state.start_flg:
 
         # 音声入力ファイルから文字起こしテキストを取得
         with st.spinner('音声入力をテキストに変換中...'):
-            transcript = ft.transcribe_audio(audio_input_file_path)
+            transcript, warning_message = ft.transcribe_audio(audio_input_file_path)
             audio_input_text = transcript.text
+            
+            # 警告メッセージがあれば表示
+            if warning_message:
+                st.warning(warning_message)
 
         # 音声入力テキストの画面表示
         with st.chat_message("user", avatar=ct.USER_ICON_PATH):
@@ -215,7 +221,8 @@ if st.session_state.start_flg:
     # 「シャドーイング」ボタン押下時か、「英会話開始」ボタン押下時
     if st.session_state.mode == ct.MODE_2 and (st.session_state.shadowing_button_flg or st.session_state.shadowing_count == 0 or st.session_state.shadowing_audio_input_flg):
         if st.session_state.shadowing_first_flg:
-            st.session_state.chain_create_problem = ft.create_chain(ct.SYSTEM_TEMPLATE_CREATE_PROBLEM)
+            system_template_with_level = ct.SYSTEM_TEMPLATE_CREATE_PROBLEM.format(level=st.session_state.englv)
+            st.session_state.chain_create_problem = ft.create_chain(system_template_with_level)
             st.session_state.shadowing_first_flg = False
         
         if not st.session_state.shadowing_audio_input_flg:
@@ -246,8 +253,12 @@ if st.session_state.start_flg:
 
         with st.spinner('音声入力をテキストに変換中...'):
             # 音声入力ファイルから文字起こしテキストを取得
-            transcript = ft.transcribe_audio(audio_input_file_path)
+            transcript, warning_message = ft.transcribe_audio(audio_input_file_path)
             audio_input_text = transcript.text
+            
+            # 警告メッセージがあれば表示
+            if warning_message:
+                st.warning(warning_message)
 
         # AIメッセージとユーザーメッセージの画面表示
         with st.chat_message("assistant", avatar=ct.AI_ICON_PATH):
@@ -263,7 +274,8 @@ if st.session_state.start_flg:
             if st.session_state.shadowing_evaluation_first_flg:
                 system_template = ct.SYSTEM_TEMPLATE_EVALUATION.format(
                     llm_text=st.session_state.problem,
-                    user_text=audio_input_text
+                    user_text=audio_input_text,
+                    level=st.session_state.englv
                 )
                 st.session_state.chain_evaluation = ft.create_chain(system_template)
                 st.session_state.shadowing_evaluation_first_flg = False

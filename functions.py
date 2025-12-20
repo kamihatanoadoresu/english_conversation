@@ -44,7 +44,20 @@ def transcribe_audio(audio_input_file_path):
     音声入力ファイルから文字起こしテキストを取得
     Args:
         audio_input_file_path: 音声入力ファイルのパス
+    Returns:
+        transcript: Whisperの文字起こし結果
+        warning_message: 警告メッセージ（なければNone）
     """
+
+    # 音声ファイルの長さをチェック
+    audio = AudioSegment.from_wav(audio_input_file_path)
+    duration_seconds = len(audio) / 1000.0  # ミリ秒から秒に変換
+    
+    warning_message = None
+    
+    # 音声の長さをチェック
+    if duration_seconds < 0.5:
+        warning_message = "⚠️ 音声が非常に短いです。もう一度、発話してみてください。"
 
     with open(audio_input_file_path, 'rb') as audio_input_file:
         transcript = st.session_state.openai_obj.audio.transcriptions.create(
@@ -53,10 +66,14 @@ def transcribe_audio(audio_input_file_path):
             language="en"
         )
     
+    # 文字起こし結果が空または非常に短い場合
+    if not transcript.text or len(transcript.text.strip()) < 3:
+        warning_message = "⚠️ 音声を認識できませんでした。もう一度、はっきりと発話してみてください。"
+    
     # 音声入力ファイルを削除
     os.remove(audio_input_file_path)
 
-    return transcript
+    return transcript, warning_message
 
 def save_to_wav(llm_response_audio, audio_output_file_path):
     """
