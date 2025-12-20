@@ -17,6 +17,10 @@ DEFAULT_STATE = {
     "mode": None,
     "pre_mode": None,
 
+    # 日常英会話モードの添削・翻訳機能
+    "show_corrections": True,  # 添削表示ON/OFF
+    "show_translation": True,  # 翻訳表示ON/OFF
+
     # シャドーイング
     "shadowing_flg": False,
     "shadowing_button_flg": False,

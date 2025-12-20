@@ -77,6 +77,20 @@ def initialize():
             index=3
         )
 
+        # 日常英会話モードの添削・翻訳機能
+        st.divider()
+        st.markdown("**日常英会話モード追加機能**")
+        st.session_state.show_corrections = st.checkbox(
+            "📝 発話添削表示",
+            value=st.session_state.get("show_corrections", True),
+            help="あなたの英語を添削します（追加トークン消費）"
+        )
+        st.session_state.show_translation = st.checkbox(
+            "🇯🇵 日本語訳表示",
+            value=st.session_state.get("show_translation", True),
+            help="AIの返事を日本語で表示（追加トークン消費）"
+        )
+
         # 英語レベルが設定されたらchainを初期化
         if "chain_basic_conversation" not in st.session_state or st.session_state.get("prev_englv") != st.session_state.englv:
             st.session_state.chain_basic_conversation = ft.create_chain(

@@ -75,7 +75,11 @@ if st.session_state.start_flg:
 if st.session_state.chat_open_flg:
     st.info("AIが読み上げた音声を、画面下部のチャット欄からそのまま入力・送信してください。")
 
-st.session_state.dictation_chat_message = st.chat_input("※「ディクテーション」選択時以外は送信不可")
+# ディクテーションモード時のみチャット入力を表示
+if st.session_state.mode == ct.MODE_3:
+    st.session_state.dictation_chat_message = st.chat_input("AIの音声を聞いて、英文を入力してください")
+else:
+    st.session_state.dictation_chat_message = ""
 
 if st.session_state.dictation_chat_message and not st.session_state.chat_open_flg:
     st.stop()
@@ -177,7 +181,7 @@ if st.session_state.start_flg:
         # 音声入力テキストの画面表示
         with st.chat_message("user", avatar=ct.USER_ICON_PATH):
             st.markdown(audio_input_text)
-
+        
         with st.spinner("回答の音声読み上げ準備中..."):
             # ユーザー入力値をLLMに渡して回答取得
             llm_response = st.session_state.chain_basic_conversation.predict(input=audio_input_text)
@@ -200,7 +204,7 @@ if st.session_state.start_flg:
 
         # 代わりに change_speed を使用
         if st.session_state.speed != 1.0:
-            temp_audio_path = f"temp_{uuid.uuid4().hex}.wav"
+            temp_audio_path = f"{ct.AUDIO_OUTPUT_DIR}/temp_{uuid.uuid4().hex}.wav"
             ft.change_speed(audio_output_file_path, temp_audio_path, st.session_state.speed)
         else:
             temp_audio_path = audio_output_file_path
@@ -211,6 +215,24 @@ if st.session_state.start_flg:
         # AIメッセージの画面表示とリストへの追加
         with st.chat_message("assistant", avatar=ct.AI_ICON_PATH):
             st.markdown(llm_response)
+            
+            # ユーザー発話の添削（ON時のみ）
+            if st.session_state.show_corrections:
+                with st.spinner('添削中...'):
+                    correction = ft.correct_user_input(audio_input_text, st.session_state.englv)
+                
+                if correction:
+                    with st.expander("📝 あなたの発話をより良くするには"):
+                        st.markdown(correction)
+            
+            # AI返事の日本語訳（ON時のみ）
+            if st.session_state.show_translation:
+                with st.spinner('翻訳中...'):
+                    translation = ft.translate_to_japanese(llm_response)
+                
+                if translation:
+                    with st.expander("🇯🇵 日本語訳を見る"):
+                        st.markdown(translation)
 
         # ユーザー入力値とLLMからの回答をメッセージ一覧に追加
         st.session_state.messages.append({"role": "user", "content": audio_input_text})

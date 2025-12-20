@@ -209,3 +209,130 @@ def create_evaluation():
     llm_response_evaluation = st.session_state.chain_evaluation.predict(input="")
 
     return llm_response_evaluation
+
+def correct_user_input(user_text, level):
+    """
+    ユーザーの英語発話を添削し、より良い表現を提示
+    Args:
+        user_text: ユーザーの英語発話
+        level: ユーザーの英語レベル
+    Returns:
+        correction: 添削結果（改善が必要ない場合はNone）
+    """
+    correction_prompt = f"""
+You are an English grammar expert. Analyze the following English sentence and provide corrections if needed.
+
+User's English Level: {level}
+User's sentence: "{user_text}"
+
+If the sentence has grammatical errors or could be improved:
+1. Provide a corrected/improved version
+2. Briefly explain the improvements in Japanese
+3. Keep the original meaning intact
+
+If the sentence is already correct and natural, simply respond with: "Perfect! No corrections needed."
+
+Format your response as:
+【改善案】
+[Improved English sentence]
+
+【解説】
+[Brief explanation in Japanese]
+"""
+    
+    correction = st.session_state.llm.predict(correction_prompt)
+    
+    # 添削が不要な場合はNoneを返す
+    if "Perfect" in correction or "No corrections needed" in correction:
+        return None
+    
+    return correction
+
+def translate_to_japanese(english_text):
+    """
+    英語テキストを日本語に翻訳
+    Args:
+        english_text: 英語テキスト
+    Returns:
+        japanese_text: 日本語訳
+    """
+    translation_prompt = f"""
+Translate the following English text to natural Japanese.
+Provide only the Japanese translation without any additional explanation.
+
+English: "{english_text}"
+
+Japanese:
+"""
+    
+    japanese_text = st.session_state.llm.predict(translation_prompt)
+    
+    return japanese_text.strip()
+
+def correct_and_translate_batch(user_text, ai_response, level):
+    """
+    ユーザー発話の添削とAI返事の翻訳を1回のLLM呼び出しで取得（トークン節約）
+    Args:
+        user_text: ユーザーの英語発話
+        ai_response: AIの英語返事
+        level: ユーザーの英語レベル
+    Returns:
+        correction: 添削結果（改善不要の場合None）
+        translation: 日本語訳
+    """
+    batch_prompt = f"""You must perform TWO tasks and return results in EXACT format below.
+
+TASK 1 - Grammar Check
+User's Level: {level}
+User said: "{user_text}"
+
+If there are errors or improvements needed:
+- Provide corrected English sentence
+- Explain improvements in Japanese
+If already perfect, output only: PERFECT
+
+TASK 2 - Translation
+AI said: "{ai_response}"
+Translate to natural Japanese.
+
+CRITICAL: Use EXACTLY this format with markers:
+<<<CORRECTION_START>>>
+[Your correction result here - either "PERFECT" or corrected sentence with Japanese explanation]
+<<<CORRECTION_END>>>
+
+<<<TRANSLATION_START>>>
+[Japanese translation here]
+<<<TRANSLATION_END>>>
+"""
+    
+    result = st.session_state.llm.predict(batch_prompt)
+    
+    # 結果を分割（改善されたパース処理）
+    correction = None
+    translation = ""
+    
+    try:
+        # 添削部分を抽出
+        if "<<<CORRECTION_START>>>" in result and "<<<CORRECTION_END>>>" in result:
+            correction_start = result.find("<<<CORRECTION_START>>>") + len("<<<CORRECTION_START>>>")
+            correction_end = result.find("<<<CORRECTION_END>>>")
+            correction_part = result[correction_start:correction_end].strip()
+            
+            # "PERFECT"でなければ添削結果として保持
+            if "PERFECT" not in correction_part.upper():
+                correction = correction_part
+        
+        # 翻訳部分を抽出
+        if "<<<TRANSLATION_START>>>" in result and "<<<TRANSLATION_END>>>" in result:
+            translation_start = result.find("<<<TRANSLATION_START>>>") + len("<<<TRANSLATION_START>>>")
+            translation_end = result.find("<<<TRANSLATION_END>>>")
+            translation = result[translation_start:translation_end].strip()
+    
+    except Exception as e:
+        # パース失敗時のフォールバック
+        st.warning(f"⚠️ 添削・翻訳の解析に失敗しました: {e}")
+        # 少なくとも何か返す
+        if "PERFECT" not in result.upper():
+            correction = result[:500]  # 最初の部分を返す
+    
+    return correction, translation
