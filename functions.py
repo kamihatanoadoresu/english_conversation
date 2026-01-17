@@ -199,7 +199,7 @@ def create_problem_and_play_audio():
         change_speed(audio_output_file_path, temp_audio_path, st.session_state.speed)
         audio_output_file_path = temp_audio_path
 
-    return problem, llm_response_audio
+    return problem, llm_response_audio, audio_output_file_path
 
 def create_evaluation():
     """
