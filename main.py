@@ -96,18 +96,38 @@ if st.session_state.start_flg:
             st.error(f"音声の録音中にエラーが発生しました: {e}")
             st.stop()
 
-        # 音声入力ファイルから文字起こしテキストを取得
+        # 音声入力ファイルから文字起こしテキストを取得（自動判定→日本語なら英訳＋カタカナ発音）
         with st.spinner('音声入力をテキストに変換中...'):
-            transcript, warning_message = ft.transcribe_audio(audio_input_file_path)
-            audio_input_text = transcript.text
-            
+            result = ft.transcribe_and_handle_language(audio_input_file_path)
+            warning_message = result.get('warning_message')
+            detected = result.get('detected_language')
+            user_message_displayed = False
+
+            # 日本語と判定された場合は日本語原文と英訳、カタカナ発音を表示し、英訳文で会話を続行
+            if detected and str(detected).lower().startswith('ja') and result.get('translated_english'):
+                japanese = result.get('original_text','')
+                translated_en = result.get('translated_english','')
+                katakana = result.get('katakana_pron','')
+
+                with st.chat_message("user", avatar=ct.USER_ICON_PATH):
+                    st.markdown(f"**(認識言語: 日本語)**\n{japanese}\n\n**英訳:**\n{translated_en}\n\n{katakana}")
+                audio_input_text = translated_en
+                user_message_displayed = True
+            else:
+                # 英語として扱う
+                audio_input_text = result.get('original_text','')
+
             # 警告メッセージがあれば表示
             if warning_message:
                 st.warning(warning_message)
 
-        # 音声入力テキストの画面表示
-        with st.chat_message("user", avatar=ct.USER_ICON_PATH):
-            st.markdown(audio_input_text)
+        # 音声入力テキストの画面表示（日本語表示済みならスキップ）
+        if not user_message_displayed:
+            if not audio_input_text or len(str(audio_input_text).strip()) == 0:
+                st.warning("⚠️ 音声を認識できませんでした。もう一度、はっきりと発話してみてください。")
+                st.stop()
+            with st.chat_message("user", avatar=ct.USER_ICON_PATH):
+                st.markdown(audio_input_text)
         
         with st.spinner("回答の音声読み上げ準備中..."):
             # ユーザー入力値をLLMに渡して回答取得

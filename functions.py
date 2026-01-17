@@ -6,6 +6,7 @@ from pathlib import Path
 # import pyaudio
 from pydub import AudioSegment
 from audiorecorder import audiorecorder
+import re
 import numpy as np
 from scipy.io.wavfile import write
 from langchain.prompts import (
@@ -74,6 +75,134 @@ def transcribe_audio(audio_input_file_path):
     os.remove(audio_input_file_path)
 
     return transcript, warning_message
+
+
+def transcribe_and_handle_language(audio_input_file_path):
+    """
+    音声を自動判定で文字起こしし、もし英語でない（日本語と判断された）場合は日本語で再文字起こしして
+    日本語→英訳、さらに英訳文のカタカナ発音を生成するワークフローを提供する。
+
+    Returns:
+        result: dict with keys:
+            detected_language: 'en' or 'ja' or 'unknown'
+            original_text: transcription text (in detected language)
+            translated_english: (if detected ja) English translation string else None
+            katakana_pron: (if translated) Katakana pronunciation string prefixed with '発音：' else None
+            warning_message: warning or None
+    """
+
+    warning_message = None
+
+    def _extract_text(obj):
+        if obj is None:
+            return ''
+        if isinstance(obj, dict):
+            return obj.get('text', '') or ''
+        if hasattr(obj, 'text'):
+            return getattr(obj, 'text') or ''
+        try:
+            # fallback to string conversion
+            return str(obj)
+        except Exception:
+            return ''
+
+    def _extract_language(obj):
+        if obj is None:
+            return None
+        if isinstance(obj, dict) and 'language' in obj:
+            return obj.get('language')
+        if hasattr(obj, 'language'):
+            return getattr(obj, 'language')
+        return None
+
+    # まず自動判定で文字起こし（言語パラメータを送らない）
+    try:
+        with open(audio_input_file_path, 'rb') as audio_input_file:
+            transcript_auto = st.session_state.openai_obj.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_input_file
+            )
+    except Exception as e:
+        return {
+            'detected_language': 'unknown',
+            'original_text': '',
+            'translated_english': None,
+            'katakana_pron': None,
+            'warning_message': f"音声の文字起こしに失敗しました: {e}"
+        }
+
+    text_auto = _extract_text(transcript_auto)
+    detected = _extract_language(transcript_auto)
+
+    # テキスト内に日本語文字があれば日本語とみなす
+    if not detected:
+        if re.search('[\u3040-\u30ff\u4e00-\u9fff]', text_auto):
+            detected = 'ja'
+        else:
+            detected = 'en'
+
+    result = {
+        'detected_language': detected,
+        'original_text': text_auto,
+        'translated_english': None,
+        'katakana_pron': None,
+        'warning_message': warning_message
+    }
+
+    # 日本語と判定された場合は日本語で再度文字起こしして正確な日本語テキストを得る
+    if str(detected).lower().startswith('ja'):
+        try:
+            with open(audio_input_file_path, 'rb') as audio_input_file:
+                transcript_ja = st.session_state.openai_obj.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_input_file,
+                    language="ja"
+                )
+            text_ja = _extract_text(transcript_ja)
+            result['original_text'] = text_ja
+
+            # 日本語を英訳（LLMを利用）
+            try:
+                translate_prompt = f"""
+Translate the following Japanese sentence to natural, concise English. Provide only the English translation.
+
+Japanese: "{text_ja}"
+
+English:
+"""
+                translated_en = st.session_state.llm.predict(translate_prompt).strip()
+                result['translated_english'] = translated_en
+            except Exception as e:
+                result['warning_message'] = f"日本語の英訳に失敗しました: {e}"
+
+            # カタカナ発音を生成（LLMに依頼）
+            if result.get('translated_english'):
+                try:
+                    kana_prompt = f"""
+Katakana phonetic transcription of the following English sentence, optimized for being read aloud by a Japanese speaker, applying liaison, reduction, and flapping. 
+Output: katakana only, single line.
+
+English: "{result['translated_english']}"
+"""
+                    katakana = st.session_state.llm.predict(kana_prompt).strip()
+                    if katakana:
+                        if not katakana.startswith('発音：'):
+                            katakana = f"発音：{katakana}"
+                        result['katakana_pron'] = katakana
+                except Exception as e:
+                    # 非致命: katakana生成失敗
+                    result['warning_message'] = (result.get('warning_message') or '') + f" カタカナ生成に失敗しました: {e}"
+
+        except Exception as e:
+            result['warning_message'] = f"日本語での再文字起こしに失敗しました: {e}"
+
+    # 音声入力ファイルを削除
+    try:
+        os.remove(audio_input_file_path)
+    except Exception:
+        pass
+
+    return result
 
 def save_to_wav(llm_response_audio, audio_output_file_path):
     """
