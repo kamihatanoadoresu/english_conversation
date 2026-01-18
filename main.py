@@ -194,19 +194,54 @@ if st.session_state.start_flg:
             st.session_state.shadowing_first_flg = False
         
         if not st.session_state.shadowing_audio_input_flg:
-            with st.spinner('問題文生成中...'):
+            with st.spinner('問題文（教材）読み込み中...'):
                 try:
-                    st.session_state.problem, llm_response_audio, audio_file_path = ft.create_problem_and_play_audio()
-                    if not st.session_state.problem:
-                        st.error("問題文の生成に失敗しました。もう一度お試しください。")
-                        st.stop()
-                except Exception as e:
-                    st.error(f"問題文生成中にエラーが発生しました: {e}")
-                    st.stop()
+                    block = ft.pick_shadowing_block_from_documents(ct.DOCUMENTS_DIR)
+                    if not block:
+                        # フォールバック: 既存の生成ロジックを使う
+                        st.session_state.problem, llm_response_audio, audio_file_path = ft.create_problem_and_play_audio()
+                    else:
+                        # block contains english, japanese, katakana, grammar_unit
+                        english = block.get('english','')
+                        japanese = block.get('japanese','')
+                        katakana = block.get('katakana','')
+                        grammar_unit = block.get('grammar_unit','')
 
-            # 問題文を表示
-            with st.chat_message("assistant", avatar=ct.AI_ICON_PATH):
-                st.markdown(st.session_state.problem)
+                        # 文法解説（LLMを最小活用）
+                        grammar_explanation = ft.explain_grammar_for_shadowing(english, grammar_unit)
+
+                        # 表示用に st.session_state.problem を英語文としてセット
+                        st.session_state.problem = english
+
+                        # 音声（TTS）を作成
+                        try:
+                            llm_response_audio = st.session_state.openai_obj.audio.speech.create(
+                                model="tts-1",
+                                voice="alloy",
+                                input=english
+                            )
+                            audio_file_path = f"{ct.AUDIO_OUTPUT_DIR}/audio_output_{int(time.time())}.wav"
+                            ft.save_to_wav(llm_response_audio.content, audio_file_path)
+                        except Exception:
+                            audio_file_path = None
+
+                        # 問題文（教材）を表示（整形）
+                        with st.chat_message("assistant", avatar=ct.AI_ICON_PATH):
+                            md = f"**教材:** {block.get('_source_file','')} (index {block.get('_block_index')})\n\n"
+                            md += f"**英文:**\n{english}\n\n"
+                            if japanese:
+                                md += f"**和訳:**\n{japanese}\n\n"
+                            if katakana:
+                                md += f"**発音:**\n{katakana}\n\n"
+                            if grammar_unit:
+                                md += f"**文法項目:**\n{grammar_unit}\n\n"
+                            if grammar_explanation:
+                                md += f"**文法解説:**\n{grammar_explanation}\n\n"
+                            st.markdown(md)
+
+                except Exception as e:
+                    st.error(f"問題文（教材）読み込み中にエラーが発生しました: {e}")
+                    st.stop()
 
         # 音声入力を受け取って音声ファイルを作成
         st.session_state.shadowing_audio_input_flg = True
@@ -239,16 +274,16 @@ if st.session_state.start_flg:
         st.session_state.messages.append({"role": "user", "content": audio_input_text})
 
         with st.spinner('評価結果の生成中...'):
-            if st.session_state.shadowing_evaluation_first_flg:
-                system_template = ct.SYSTEM_TEMPLATE_EVALUATION.format(
-                    llm_text=st.session_state.problem,
-                    user_text=audio_input_text,
-                    level=st.session_state.englv
-                )
-                st.session_state.chain_evaluation = ft.create_chain(system_template)
-                st.session_state.shadowing_evaluation_first_flg = False
-            # 問題文と回答を比較し、評価結果の生成を指示するプロンプトを作成
-            llm_response_evaluation = ft.create_evaluation()
+            # 毎回現在の問題文と回答に基づいて評価プロンプトを直接LLMに投げる
+            system_template = ct.SYSTEM_TEMPLATE_EVALUATION.format(
+                llm_text=st.session_state.problem,
+                user_text=audio_input_text,
+                level=st.session_state.englv
+            )
+            try:
+                llm_response_evaluation = st.session_state.llm.predict(system_template)
+            except Exception as e:
+                llm_response_evaluation = f"評価の生成に失敗しました: {e}"
         
         # 評価結果のメッセージリストへの追加と表示
         with st.chat_message("assistant", avatar=ct.AI_ICON_PATH):
