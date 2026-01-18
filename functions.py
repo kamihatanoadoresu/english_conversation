@@ -136,12 +136,24 @@ def transcribe_and_handle_language(audio_input_file_path):
     text_auto = _extract_text(transcript_auto)
     detected = _extract_language(transcript_auto)
 
-    # テキスト内に日本語文字があれば日本語とみなす
-    if not detected:
-        if re.search('[\u3040-\u30ff\u4e00-\u9fff]', text_auto):
-            detected = 'ja'
-        else:
-            detected = 'en'
+    # 判定ルール拡張:
+    # - もし既にAPIが言語を返していればそれを使う
+    # - 返ってこなければテキストを解析して判定する
+    #   * 英単語が3つ以上含まれていれば英語と扱う（和製英語対応）
+    #   * それ以外で日本語文字が含まれていれば日本語
+    #   * それ以外は英語とする
+    # Count English-like tokens regardless of whisper's detected field.
+    eng_words = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", text_auto)
+    # Rule: If 3 or more English tokens exist, treat as English (override Japanese detection).
+    if len(eng_words) >= 3:
+        detected = 'en'
+    else:
+        # If whisper did not supply language, fall back to Japanese character detection
+        if not detected:
+            if re.search('[\u3040-\u30ff\u4e00-\u9fff]', text_auto):
+                detected = 'ja'
+            else:
+                detected = 'en'
 
     result = {
         'detected_language': detected,
@@ -181,10 +193,39 @@ English:
             if result.get('translated_english'):
                 try:
                     kana_prompt = f"""
-Katakana phonetic transcription of the following English sentence, optimized for being read aloud by a Japanese speaker, applying liaison, reduction, and flapping.  
-Especially for reduction, enclose the barely pronounced parts in parentheses () so the speaker can see they are almost silent.  
-Output: katakana only, single line.
+Katakana phonetic transcription of the following English sentence, optimized for being read aloud by a Japanese speaker.
 
+Apply the following rules strictly:
+
+1. Reduction:
+   - Identify the syllables that are barely pronounced or reduced in natural spoken English.
+   - Enclose ONLY the reduced/weak syllables in parentheses (), not the main stressed part.
+   - Parentheses indicate a weak, reduced sound that is still pronounced, not a completely omitted sound.
+   - Representative examples:
+     - /t/ final: “efficient” → エフィシェン(ト)
+     - /d/ final: “good” → グ(ドゥ)
+     - /g/ final (nasalized): “doing” → ドゥイ(ン)
+     - /k/ final (unreleased): “back” → バ(ク)
+
+2. Liaison / Linking:
+   - Apply natural connected-speech transformations aggressively.
+   - Merge consonant → vowel connections.
+   - Examples:
+     - “want to” → ワナ
+     - “going to” → ゴナ
+     - “look at it” → ルカリッ
+
+3. Flapping:
+   - Apply American flapping for /t/ and /d/ between vowels.
+   - Examples:
+     - “water” → ワラー
+     - “get it” → ゲリッ
+     - “better” → ベラー
+
+Output:
+- Katakana only.
+- Single line.
+- No English, no explanations.
 
 English: "{result['translated_english']}"
 """
