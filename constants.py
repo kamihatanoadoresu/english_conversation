@@ -49,17 +49,37 @@ Format:
 
 # 約15語のシンプルな英文生成を指示するプロンプト
 SYSTEM_TEMPLATE_CREATE_PROBLEM = """
-    Generate 1 sentence that reflect natural English used in daily conversations, workplace, and social settings:
-    - Casual conversational expressions
-    - Polite business language
-    - Friendly phrases used among friends
-    - Sentences with situational nuances and emotions
-    - Expressions reflecting cultural and regional contexts
+Generate exactly 1 sentence that reflects natural English used in daily conversations, workplace, or social settings.
 
-    User's English Level: {level}
-    - If "初級者" (Beginner): Use only basic vocabulary (A1 level), simple present/past tense, 5-8 words, avoid idioms.
-    - If "中級者" (Intermediate): Use moderate vocabulary (A2-B1 level), include phrasal verbs, 8-12 words, occasional idioms okay.
-    - If "上級者" (Advanced): Use advanced vocabulary (C2-C2 level), complex structures, 10-15 words, idioms and cultural references encouraged.
+General requirements:
+- The output MUST follow the word-count rules strictly.
+- The output should be one sentence. However, if a single sentence would break the natural flow or meaning, two sentences are acceptable.
+- Do NOT exceed the word limit under any circumstances.
+
+User's English Level: {level}
+
+Level rules:
+- If "初級者" (Beginner):
+  - Use only basic vocabulary (A1 level).
+  - Use simple present or simple past tense only.
+  - The sentence MUST contain 5–8 words.
+  - No idioms, no phrasal verbs, no complex structures.
+
+- If "中級者" (Intermediate):
+  - Use moderate vocabulary (A2–B1 level).
+  - Phrasal verbs allowed.
+  - The sentence MUST contain 8–12 words.
+  - Simple idioms allowed, but keep the structure clear.
+
+- If "上級者" (Advanced):
+  - Use advanced vocabulary (C1–C2 level).
+  - Complex structures allowed.
+  - The sentence MUST contain 10–15 words.
+  - Idioms, nuance, and cultural references encouraged.
+
+Output:
+- Only the generated sentence(s).
+- No explanations, no translations.
 """
 
 # 問題文と回答を比較し、評価結果の生成を支持するプロンプトを作成
@@ -97,4 +117,34 @@ SYSTEM_TEMPLATE_EVALUATION = """
     レベルに応じた次回の練習のためのポイント
 
     ユーザーの努力を認め、前向きな姿勢で次の練習に取り組めるような励ましのコメントを含めてください。
+"""
+
+# ディクテーション専用の評価プロンプト（メモリを参照せず、完全一致時は改善点を出力しない）
+SYSTEM_TEMPLATE_EVALUATION_DICTATION = """
+    あなたは英語学習の専門家です。
+    以下の「問題文（LLM生成）」と「ユーザーの解答」を比較し、短く明確に評価してください。
+
+    【指示】
+    - 出力は日本語で行うこと。
+    - 最初に【評価】を一行で示す（例: 【評価】 ✓ 完璧です）。
+    - 完璧に一致している場合は、改善点（△）は表示しないこと。
+    - 一致しない場合のみ、短い改善アドバイスを1〜2行で記載すること。
+    - 会話履歴・メモリは参照しないこと（現在の問題と回答のみを評価する）。
+
+    【LLMによる問題文】
+    問題文：{llm_text}
+
+    【ユーザーによる回答文】
+    回答文：{user_text}
+
+    【ユーザーの英語レベル】
+    {level}
+
+    出力例（完璧な場合）:
+    【評価】 ✓ 完璧です。
+
+    出力例（改善が必要な場合）:
+    【評価】 △ 改善が必要です。
+    - 誤り: "誤った単語や構文"
+    - アドバイス: 簡潔な改善提案（1行）
 """

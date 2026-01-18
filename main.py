@@ -342,14 +342,16 @@ if st.session_state.start_flg:
             st.session_state.messages.append({"role": "user", "content": st.session_state.dictation_chat_message})
             
             with st.spinner('評価結果の生成中...'):
-                system_template = ct.SYSTEM_TEMPLATE_EVALUATION.format(
+                # Use dictation-specific evaluation template and call LLM directly (no memory)
+                system_template = ct.SYSTEM_TEMPLATE_EVALUATION_DICTATION.format(
                     llm_text=st.session_state.problem,
                     user_text=st.session_state.dictation_chat_message,
                     level=st.session_state.englv
                 )
-                st.session_state.chain_evaluation = ft.create_chain(system_template)
-                # 問題文と回答を比較し、評価結果の生成を指示するプロンプトを作成
-                llm_response_evaluation = ft.create_evaluation()
+                try:
+                    llm_response_evaluation = st.session_state.llm.predict(system_template)
+                except Exception as e:
+                    llm_response_evaluation = f"評価の生成に失敗しました: {e}"
             
             # 評価結果のメッセージリストへの追加と表示
             with st.chat_message("assistant", avatar=ct.AI_ICON_PATH):
