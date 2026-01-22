@@ -229,15 +229,19 @@ if st.session_state.start_flg:
                         with st.chat_message("assistant", avatar=ct.AI_ICON_PATH):
                             md = f"**教材:** {block.get('_source_file','')} (index {block.get('_block_index')})\n\n"
                             md += f"**英文:**\n{english}\n\n"
-                            if japanese:
-                                md += f"**和訳:**\n{japanese}\n\n"
-                            if katakana:
-                                md += f"**発音:**\n{katakana}\n\n"
-                            if grammar_unit:
-                                md += f"**文法項目:**\n{grammar_unit}\n\n"
-                            if grammar_explanation:
-                                md += f"**文法解説:**\n{grammar_explanation}\n\n"
                             st.markdown(md)
+                            # expanderでデフォルトは非表示
+                            with st.expander("解説を見る"):
+                                emd = ""
+                                if japanese:
+                                    emd += f"**和訳:**\n{japanese}\n\n"
+                                if katakana:
+                                    emd += f"**発音:**\n{katakana}\n\n"
+                                if grammar_unit:
+                                    emd += f"**文法項目:**\n{grammar_unit}\n\n"
+                                if grammar_explanation:
+                                    emd += f"**文法解説:**\n{grammar_explanation}\n\n"
+                                st.markdown(emd)
 
                 except Exception as e:
                     st.error(f"問題文（教材）読み込み中にエラーが発生しました: {e}")

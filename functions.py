@@ -554,7 +554,7 @@ def parse_block_to_parts(block_text):
         parts['grammar_unit'] = lines[3]
     # If more lines exist, append them to grammar_unit
     if len(lines) > 4:
-        parts['grammar_unit'] += '\n' + '\n'.join(lines[4:])
+        parts['grammar_unit'] += '　+α：' + lines[4]
     return parts
 
 
@@ -575,6 +575,7 @@ def pick_shadowing_block_from_documents(documents_dir):
         current_file_names = [str(x) for x in files]
         cached_files = st.session_state.get('shadowing_files')
         prev_selected = st.session_state.get('shadowing_selected_file')
+        # ！高速化のため改善の余地あり
         if cached_files != current_file_names:
             # reload all files into cache
             st.session_state['shadowing_files'] = current_file_names
@@ -588,9 +589,14 @@ def pick_shadowing_block_from_documents(documents_dir):
                             cells = [c.text.strip() for c in r.cells]
                             if not any(cells):
                                 continue
+                            # ensure we have 4 cells
                             while len(cells) < 4:
                                 cells.append('')
-                            rows.append({'english': cells[0], 'japanese': cells[1], 'katakana': cells[2], 'grammar_unit': cells[3]})
+                            # depending on number of cells, parse accordingly
+                            if len(cells) > 4:
+                                rows.append({'english': cells[0], 'japanese': cells[1], 'katakana': cells[2], 'grammar_unit': cells[3] + '　　★ワンポイント：' + cells[4]})
+                            else:
+                                rows.append({'english': cells[0], 'japanese': cells[1], 'katakana': cells[2], 'grammar_unit': cells[3]})
                 except Exception:
                     # fallback to paragraph blocks
                     blocks = _split_blocks_from_docx(str(f))
