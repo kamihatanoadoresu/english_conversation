@@ -81,18 +81,17 @@ def transcribe_audio(audio_input_file_path):
 
 def transcribe_and_handle_language(audio_input_file_path):
     """
-    音声を自動判定で文字起こしし、もし英語でない（日本語と判断された）場合は日本語で再文字起こしして
-    日本語→英訳、さらに英訳文のカタカナ発音を生成するワークフローを提供する。
+    音声を文字起こしし、
+    - 英単語が3語以上含まれていれば「英語」
+    - それ以外はすべて「日本語」
+    と判定する。
+
+    日本語と判定された場合のみ：
+    -> 日本語で再文字起こし／英訳英文のカタカナ発音を生成する
 
     Returns:
-        result: dict with keys:
-            detected_language: 'en' or 'ja' or 'unknown'
-            original_text: transcription text (in detected language)
-            translated_english: (if detected ja) English translation string else None
-            katakana_pron: (if translated) Katakana pronunciation string prefixed with '発音：' else None
-            warning_message: warning or None
+        result: dict
     """
-
     warning_message = None
 
     def _extract_text(obj):
@@ -122,7 +121,8 @@ def transcribe_and_handle_language(audio_input_file_path):
         with open(audio_input_file_path, 'rb') as audio_input_file:
             transcript_auto = st.session_state.openai_obj.audio.transcriptions.create(
                 model="whisper-1",
-                file=audio_input_file
+                file=audio_input_file,
+                response_format="verbose_json"
             )
     except Exception as e:
         return {
@@ -134,26 +134,18 @@ def transcribe_and_handle_language(audio_input_file_path):
         }
 
     text_auto = _extract_text(transcript_auto)
-    detected = _extract_language(transcript_auto)
+    whisper_lang = _extract_language(transcript_auto)
 
-    # 判定ルール拡張:
-    # - もし既にAPIが言語を返していればそれを使う
-    # - 返ってこなければテキストを解析して判定する
-    #   * 英単語が3つ以上含まれていれば英語と扱う（和製英語対応）
-    #   * それ以外で日本語文字が含まれていれば日本語
-    #   * それ以外は英語とする
-    # Count English-like tokens regardless of whisper's detected field.
+    # Whisper の language 判定・日本語文字判定は一切使わない
+    # 英単語が3語以上 → 英語、それ以外 → 日本語
+    whisper_lang_norm = (whisper_lang or '').lower()
     eng_words = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", text_auto)
-    # Rule: If 3 or more English tokens exist, treat as English (override Japanese detection).
-    if len(eng_words) >= 3:
+    if whisper_lang_norm.startswith('en') or whisper_lang_norm == 'english':
+        detected = 'en'
+    elif len(eng_words) >= 3:
         detected = 'en'
     else:
-        # If whisper did not supply language, fall back to Japanese character detection
-        if not detected:
-            if re.search('[\u3040-\u30ff\u4e00-\u9fff]', text_auto):
-                detected = 'ja'
-            else:
-                detected = 'en'
+        detected = 'ja'
 
     result = {
         'detected_language': detected,
@@ -164,7 +156,7 @@ def transcribe_and_handle_language(audio_input_file_path):
     }
 
     # 日本語と判定された場合は日本語で再度文字起こしして正確な日本語テキストを得る
-    if str(detected).lower().startswith('ja'):
+    if detected == 'ja':
         try:
             with open(audio_input_file_path, 'rb') as audio_input_file:
                 transcript_ja = st.session_state.openai_obj.audio.transcriptions.create(
