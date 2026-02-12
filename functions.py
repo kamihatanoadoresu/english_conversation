@@ -136,16 +136,23 @@ def transcribe_and_handle_language(audio_input_file_path):
     text_auto = _extract_text(transcript_auto)
     whisper_lang = _extract_language(transcript_auto)
 
-    # Whisper の language 判定・日本語文字判定は一切使わない
-    # 英単語が3語以上 → 英語、それ以外 → 日本語
+    # 判定ロジック（ユーザ要望）:
+    # - 文字起こしが完全に日本語であれば日本語扱い
+    # - それ以外は英語扱い
+    # - ただし Whisper が明示的に 'ja' / 'en' を返した場合はそれを優先する
     whisper_lang_norm = (whisper_lang or '').lower()
-    eng_words = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", text_auto)
-    if whisper_lang_norm.startswith('en') or whisper_lang_norm == 'english':
-        detected = 'en'
-    elif len(eng_words) >= 3:
+
+    if whisper_lang_norm.startswith('ja') or whisper_lang_norm == 'japanese':
+        detected = 'ja'
+    elif whisper_lang_norm.startswith('en') or whisper_lang_norm == 'english':
         detected = 'en'
     else:
-        detected = 'ja'
+        # テキスト中にラテン文字が1文字でも含まれていれば「完全日本語ではない」とみなし英語
+        # （英単語が混在するケースは英語扱いになる）
+        if re.search(r'[A-Za-z]', text_auto):
+            detected = 'en'
+        else:
+            detected = 'ja'
 
     result = {
         'detected_language': detected,
